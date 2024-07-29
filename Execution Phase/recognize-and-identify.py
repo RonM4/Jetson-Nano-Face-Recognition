@@ -23,7 +23,6 @@ import collections
 #########################################
 
 camera = jetson_utils.videoSource("/dev/video0")
-#display = jetson_utils.videoOutput("webrtc://@:8554/outputStream", argv=['--headless'])
 display = jetson_utils.videoOutput()
 
 #########################################
