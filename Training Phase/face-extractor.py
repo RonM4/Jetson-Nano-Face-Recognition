@@ -12,13 +12,12 @@ savedir = "results/"
 parser = argparse.ArgumentParser(description="Locate objects in a live camera stream using an object detection DNN.", 
                                  formatter_class=argparse.RawTextHelpFormatter, 
                                  epilog=detectNet.Usage() + videoSource.Usage() + videoOutput.Usage() + Log.Usage())
-
 parser.add_argument("input", type=str, default="", nargs='?', help="URI of the input stream")
-parser.add_argument("output", type=str, default="", nargs='?', help="URI of the output stream")
+parser.add_argument("--save-dir", type=str, default=savedir, help="directory to save cropped faces")
 parser.add_argument("--network", type=str, default="facedetect", help="pre-trained model to load (see below for options)")
 parser.add_argument("--overlay", type=str, default="none", help="detection overlay flags (e.g. --overlay=box,labels,conf)\nvalid combinations are:  'box', 'labels', 'conf', 'none'")
 parser.add_argument("--threshold", type=float, default=0.85, help="minimum detection threshold to use") 
-parser.add_argument("--save-dir", type=str, default=savedir, help="directory to save cropped faces")
+
 
 is_headless = ["--headless"] if sys.argv[0].find('console.py') != -1 else [""]
 
@@ -31,7 +30,6 @@ except:
 
 # create video sources and outputs
 input = videoSource(args.input, argv=sys.argv)
-output = videoOutput(args.output, argv=sys.argv+is_headless)
 
 # load the object detection network
 net = detectNet(args.network, threshold = 0.80)
@@ -80,6 +78,6 @@ while True:
     # print out performance info
     net.PrintProfilerTimes()
 
-    # exit on input/output EOS
+    # exit on input EOS
     if not input.IsStreaming():
         break
