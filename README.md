@@ -26,7 +26,7 @@ After extracting the faces from the images, and saving them in a separate direct
 *  Save checkpoint function to save the progress of the model at the end of each epoch (model parameters, optimizer state and current epoch).
 *  StepLR Schedular - to help with loss convergence.
 
-### Execution Phase
+### [Execution Phase](https://github.com/RonM4/Jetson-Nano-Face-Recognition/tree/main/Execution%20Phase)
 This folder contains a single file:
 
 * [recognize-and-identify.py](https://github.com/4uSpock/Jetson-Nano-Face-Recognition/tree/main/Execution%20Phase) - This code piece will open a glDisplay window, where it will display the tagged, and framed faces. While integrating NVIDIA's FaceDetect model, and our model, we can frame, and nametag individuals based on their faces, be it a real-time stream or a photo.
