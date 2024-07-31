@@ -6,7 +6,9 @@ These features are then utilized in a custom ResNet-18 network to recognize face
 The system is designed to handle datasets with 10-15 images per person, providing robust performance even with limited data.
 This approach ensures efficient and scalable facial recognition that is suitable for various applications. 
 
-More specifically speaking, the face detection model is found [here](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/facenet), and the description is found [here](https://docs.nvidia.com/tao/tao-toolkit/text/model_zoo/cv_models/facedetectnet.html), as well as, additional info [here](https://github.com/katjasrz/FaceDetect_TRTIS).
+More information on the face detection model (FaceDetect) is found [here](https://catalog.ngc.nvidia.com/orgs/nvidia/teams/tao/models/facenet), and the description is found [here](https://docs.nvidia.com/tao/tao-toolkit/text/model_zoo/cv_models/facedetectnet.html), as well as, additional info [here](https://github.com/katjasrz/FaceDetect_TRTIS).
+
+The model was trained on Python v3.10, PyTorch v1.9.1+cpu, and executed with Python 3.6.9, PyTorch 1.10.0 (as per [the container's](https://hub.docker.com/r/dustynv/jetson-inference) preconfigured version)
 
 ## Structure of the project's code files
 
