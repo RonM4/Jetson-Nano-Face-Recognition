@@ -1,104 +1,149 @@
+import argparse
+import os
+import random
+import time
+import shutil
+
 import torch
 import torch.nn as nn
-from torch.optim import Adam
-from torchvision import models, transforms, datasets
+import torch.optim as optim
+import torch.backends.cudnn as cudnn
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+import torchvision.models as models
 from torch.utils.data import DataLoader, random_split
-from pytorch_metric_learning import losses, miners
 
-dataset_path = "<Path To Your Dataset Here>"
-model_save_path = "<Your Saving Path Here>.plt"
+# Command-line argument parsing
+parser = argparse.ArgumentParser(description='PyTorch ResNet18 Training')
+parser.add_argument('--data', metavar='DIR', default='training-results',
+                    help='path to dataset')
+parser.add_argument('--epochs', default=25, type=int, metavar='N',
+                    help='number of total epochs to run')
+parser.add_argument('--batch-size', default=4, type=int, metavar='N',
+                    help='mini-batch size (default: 4)')
+parser.add_argument('--lr', '--learning-rate', default=0.001, type=float,
+                    metavar='LR', help='initial learning rate', dest='lr')
+parser.add_argument('--weight-decay', default=1e-4, type=float,
+                    metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
+                    help='momentum')
+parser.add_argument('--print-freq', default=10, type=int, metavar='N',
+                    help='print frequency (default: 10)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH',
+                    help='path to latest checkpoint (default: none)')
+parser.add_argument('--gpu', default=0, type=int,
+                    help='GPU ID to use (default: 0)')
+parser.add_argument('--model-dir', default='models', type=str,
+                    help='path to save model checkpoints')
+args = parser.parse_args()
 
-# Define transformations for your dataset, including data augmentation
-transform_train = transforms.Compose([
-    transforms.Resize((224, 224)),
+# Set seed for reproducibility
+seed = 42
+random.seed(seed)
+torch.manual_seed(seed)
+cudnn.deterministic = True
+
+# Data transformations
+transform = transforms.Compose([
+    transforms.RandomResizedCrop(224),
     transforms.RandomHorizontalFlip(),
-    transforms.RandomRotation(10),
-    transforms.RandomResizedCrop(224, scale=(0.8, 1.0)),
+    transforms.RandomRotation(30),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2),
+    transforms.RandomGrayscale(p=0.1),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-transform_val = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
+# Load the dataset
+dataset = datasets.ImageFolder(args.data, transform=transform)
 
-# Load your dataset
-dataset = datasets.ImageFolder(root=dataset_path)
-
-# Split dataset into training and validation sets (80% train, 20% val)
+# Split the dataset into train and validation sets
 train_size = int(0.8 * len(dataset))
 val_size = len(dataset) - train_size
 train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-# Apply transformations to the train and validation datasets
-train_dataset.dataset.transform = transform_train
-val_dataset.dataset.transform = transform_val
+# Create DataLoader
+train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, pin_memory=True)
+val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
-# Create data loaders
-train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False)
-
-# Load the pretrained ResNet-18 model and modify it
+# Define the model
 model = models.resnet18(pretrained=True)
-model.fc = nn.Linear(model.fc.in_features, 128)  # Use a smaller embedding size for metric learning
+num_features = model.fc.in_features
+model.fc = nn.Linear(num_features, len(dataset.classes))
 
-# Define the loss function and mining function
-loss_func = losses.TripletMarginLoss(margin=0.2)
-miner = miners.TripletMarginMiner(margin=0.2, type_of_triplets="hard")
+# Freeze all layers except the last layer
+for param in model.parameters():
+    param.requires_grad = False
+for param in model.fc.parameters():
+    param.requires_grad = True
 
-# Define the optimizer
-optimizer = Adam(model.parameters(), lr=0.0001)
-
-# Move model to GPU if available
+# Move the model to GPU if available
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = model.to(device)
+model.to(device)
 
-# Training and validation loop
-num_epochs = 20
-best_val_loss = float('inf')
+# Define the loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.fc.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
-for epoch in range(num_epochs):
+# Learning rate scheduler
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+
+# Save checkpoint function
+def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', best_filename='model_best.pth.tar'):
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, best_filename)
+
+# Training function
+def train(model, loader, criterion, optimizer, device, epoch):
     model.train()
     running_loss = 0.0
-    for inputs, labels in train_loader:
-        inputs, labels = inputs.to(device), labels.to(device)
-
+    for i, (images, labels) in enumerate(loader):
+        images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
-
-        embeddings = model(inputs)
-        hard_pairs = miner(embeddings, labels)
-        loss = loss_func(embeddings, labels, hard_pairs)
-
+        outputs = model(images)
+        loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
+        running_loss += loss.item() * images.size(0)
+        if i % args.print_freq == 0:
+            print(f'Epoch [{epoch}/{args.epochs}], Step [{i}/{len(loader)}], Loss: {loss.item():.4f}')
+    return running_loss / len(loader.dataset)
 
-        running_loss += loss.item()
-
-    avg_train_loss = running_loss / len(train_loader)
-
-    # Validation phase
+# Validation function
+def validate(model, loader, criterion, device):
     model.eval()
-    running_val_loss = 0.0
+    running_loss = 0.0
+    correct = 0
     with torch.no_grad():
-        for inputs, labels in val_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
+        for images, labels in loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            running_loss += loss.item() * images.size(0)
+            _, preds = torch.max(outputs, 1)
+            correct += torch.sum(preds == labels)
+    return running_loss / len(loader.dataset), correct.double() / len(loader.dataset)
 
-            embeddings = model(inputs)
-            hard_pairs = miner(embeddings, labels)
-            val_loss = loss_func(embeddings, labels, hard_pairs)
+# Main function
+def main():
+    best_acc = 0.0
+    for epoch in range(args.epochs):
+        train_loss = train(model, train_loader, criterion, optimizer, device, epoch)
+        val_loss, val_acc = validate(model, val_loader, criterion, device)
+        scheduler.step()
+        is_best = val_acc > best_acc
+        best_acc = max(val_acc, best_acc)
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            'best_acc': best_acc,
+            'optimizer': optimizer.state_dict(),
+        }, is_best)
+        print(f'Epoch [{epoch + 1}/{args.epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}')
 
-            running_val_loss += val_loss.item()
+    # Save the final model
+    torch.save(model.state_dict(), os.path.join(args.model_dir, 'face_recognition_model.pth'))
 
-    avg_val_loss = running_val_loss / len(val_loader)
-
-    print(f'Epoch {epoch + 1}/{num_epochs}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}')
-
-    # Save the model if validation loss has decreased
-    if avg_val_loss < best_val_loss:
-        best_val_loss = avg_val_loss
-        torch.save(model.state_dict(), model_save_path)
-        print(f'Saved model with val loss: {avg_val_loss:.4f}')
-
-print('Training complete')
+if __name__ == '__main__':
+    main()
