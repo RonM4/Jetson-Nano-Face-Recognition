@@ -10,6 +10,9 @@ More information on the face detection model (FaceDetect) is found [here](https:
 
 The model was trained on Python v3.10, PyTorch v1.9.1+cpu, and executed with Python 3.6.9, PyTorch 1.10.0 (as per [the container's](https://hub.docker.com/r/dustynv/jetson-inference) preconfigured version)
 
+To install the relevant jetson-inference container, please refer to this [GitHub page](https://github.com/dusty-nv/jetson-inference/blob/master/docs/aux-docker.md). For an easier workflow with the container, and the dustynv "Hello AI" series, as well as, an automatic download for the relevant container, please refer to [this section](https://github.com/dusty-nv/jetson-inference/blob/master/docs/aux-docker.md#launching-the-container).
+
+
 ## Structure of the project's code files
 
 Our project contains two folders: The ```Training Phase```, and ```Execution Phase```. 
