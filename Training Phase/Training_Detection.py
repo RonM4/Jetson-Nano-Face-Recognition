@@ -88,23 +88,6 @@ optimizer = optim.Adam(model.fc.parameters(), lr=args.lr, weight_decay=args.weig
 # Learning rate scheduler
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
 
-# Initialize variables for resuming from a checkpoint
-start_epoch = 0
-best_acc = 0.0
-
-# Load checkpoint if resume path is provided
-if args.resume:
-    if os.path.isfile(args.resume):
-        print(f"=> loading checkpoint '{args.resume}'")
-        checkpoint = torch.load(args.resume)
-        start_epoch = checkpoint['epoch']
-        best_acc = checkpoint['best_acc']
-        model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        print(f"=> loaded checkpoint '{args.resume}' (epoch {checkpoint['epoch']})")
-    else:
-        print(f"=> no checkpoint found at '{args.resume}'")
-
 # Save checkpoint function
 def save_checkpoint(state, is_best, filename='checkpoint.pth.tar', best_filename='model_best.pth.tar'):
     torch.save(state, filename)
@@ -144,7 +127,8 @@ def validate(model, loader, criterion, device):
 
 # Main function
 def main():
-    for epoch in range(start_epoch, args.epochs):
+    best_acc = 0.0
+    for epoch in range(args.epochs):
         train_loss = train(model, train_loader, criterion, optimizer, device, epoch)
         val_loss, val_acc = validate(model, val_loader, criterion, device)
         scheduler.step()
@@ -154,7 +138,7 @@ def main():
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'best_acc': best_acc,
-            'optimizer': optimizer.state_idct(),
+            'optimizer': optimizer.state_dict(),
         }, is_best)
         print(f'Epoch [{epoch + 1}/{args.epochs}], Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}')
 
